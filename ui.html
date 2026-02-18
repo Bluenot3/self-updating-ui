@@ -51,6 +51,68 @@
             100% { transform: translate(0) }
         }
         .glitch-active:hover { animation: glitch 0.2s cubic-bezier(.25, .46, .45, .94) both infinite; }
+
+        :root {
+            --zen-bg: #05070f;
+            --zen-surface: rgba(15, 20, 35, 0.58);
+            --zen-surface-strong: rgba(15, 20, 35, 0.8);
+            --zen-text: #eef4ff;
+            --zen-muted: #9aadc8;
+            --zen-accent: #72d6ff;
+            --zen-accent-2: #967dff;
+            --zen-radius-lg: 16px;
+            --zen-radius-2xl: 28px;
+            --zen-blur: 18px;
+            --zen-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+            --zen-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+            --zen-fast: 140ms;
+            --zen-med: 300ms;
+        }
+
+        .zen-glass {
+            background: linear-gradient(150deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.06) 35%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            backdrop-filter: blur(var(--zen-blur));
+            box-shadow: var(--zen-shadow);
+            border-radius: var(--zen-radius-2xl);
+        }
+
+        .zen-focus-ring:focus-visible {
+            outline: 2px solid rgba(114, 214, 255, 0.9);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 6px rgba(114, 214, 255, 0.2);
+        }
+
+        .zen-ambient {
+            background:
+                radial-gradient(1200px 700px at var(--mx, 70%) var(--my, 15%), rgba(114,214,255,0.16), transparent 60%),
+                radial-gradient(900px 500px at 15% 85%, rgba(150,125,255,0.13), transparent 55%),
+                linear-gradient(120deg, #060912, #0e1425 42%, #0a0f1d);
+            animation: ambientDrift 28s var(--zen-ease) infinite alternate;
+        }
+
+        @keyframes ambientDrift {
+            0% { filter: saturate(105%) brightness(98%); }
+            100% { filter: saturate(120%) brightness(108%); }
+        }
+
+        .kinetic-lift {
+            transition: transform var(--zen-med) var(--zen-ease), box-shadow var(--zen-med) var(--zen-ease);
+        }
+
+        .kinetic-lift:hover {
+            transform: translateY(-4px) scale(1.01);
+            box-shadow: 0 22px 48px rgba(0, 0, 0, 0.42);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 1ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 1ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -315,6 +377,150 @@
 
         const FontLoader = ({ url }) => <style>{`@import url('${url}');`}</style>;
 
+        const defaultFeatureFlags = {
+            ambientBackdrop: true,
+            particles: true,
+            glassRefraction: true,
+            isometricTiles: true,
+            storyMode: false,
+            commandPalette: true,
+            adaptiveUI: true,
+        };
+
+        const usePrefersReducedMotion = () => {
+            const [reduced, setReduced] = useState(false);
+            useEffect(() => {
+                const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+                const onChange = () => setReduced(query.matches);
+                onChange();
+                query.addEventListener('change', onChange);
+                return () => query.removeEventListener('change', onChange);
+            }, []);
+            return reduced;
+        };
+
+        const useTelemetry = () => {
+            const [telemetry, setTelemetry] = useState(() => {
+                try { return JSON.parse(localStorage.getItem('zenTelemetry') || '{}'); }
+                catch { return {}; }
+            });
+
+            const track = useCallback((event, payload = {}) => {
+                setTelemetry(prev => {
+                    const next = {
+                        ...prev,
+                        [event]: (prev[event] || 0) + 1,
+                        lastEvent: event,
+                        lastPayload: payload,
+                        lastAt: Date.now(),
+                    };
+                    localStorage.setItem('zenTelemetry', JSON.stringify(next));
+                    if (window.ZEN_UI_TELEMETRY_ENDPOINT) {
+                        fetch(window.ZEN_UI_TELEMETRY_ENDPOINT, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ event, payload, at: Date.now() })
+                        }).catch(() => {});
+                    }
+                    return next;
+                });
+            }, []);
+
+            return { telemetry, track };
+        };
+
+        const AmbientBackdrop = ({ enabled, reducedMotion }) => {
+            const ref = useRef(null);
+            useEffect(() => {
+                if (!enabled || reducedMotion || !ref.current) return;
+                const move = (e) => {
+                    ref.current?.style.setProperty('--mx', `${(e.clientX / window.innerWidth) * 100}%`);
+                    ref.current?.style.setProperty('--my', `${(e.clientY / window.innerHeight) * 100}%`);
+                };
+                window.addEventListener('pointermove', move, { passive: true });
+                return () => window.removeEventListener('pointermove', move);
+            }, [enabled, reducedMotion]);
+            return <div ref={ref} className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${enabled ? 'opacity-100 zen-ambient' : 'opacity-0'}`} aria-hidden="true" />;
+        };
+
+        const ParticleConstellation = ({ enabled, liteMode }) => {
+            const ref = useRef(null);
+            useEffect(() => {
+                if (!enabled || liteMode || !ref.current) return;
+                const canvas = ref.current;
+                const ctx = canvas.getContext('2d');
+                let raf = 0;
+                const points = Array.from({ length: 38 }, () => ({ x: Math.random(), y: Math.random(), vx: (Math.random() - 0.5) * 0.00035, vy: (Math.random() - 0.5) * 0.00035 }));
+
+                const resize = () => {
+                    canvas.width = canvas.clientWidth;
+                    canvas.height = canvas.clientHeight;
+                };
+                resize();
+                window.addEventListener('resize', resize);
+
+                const draw = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    points.forEach((p) => {
+                        p.x = (p.x + p.vx + 1) % 1;
+                        p.y = (p.y + p.vy + 1) % 1;
+                    });
+                    for (let i = 0; i < points.length; i++) {
+                        for (let j = i + 1; j < points.length; j++) {
+                            const dx = points[i].x - points[j].x;
+                            const dy = points[i].y - points[j].y;
+                            const d = Math.hypot(dx, dy);
+                            if (d < 0.22) {
+                                ctx.strokeStyle = `rgba(130, 210, 255, ${0.15 - d * 0.55})`;
+                                ctx.beginPath();
+                                ctx.moveTo(points[i].x * canvas.width, points[i].y * canvas.height);
+                                ctx.lineTo(points[j].x * canvas.width, points[j].y * canvas.height);
+                                ctx.stroke();
+                            }
+                        }
+                        ctx.fillStyle = 'rgba(180,225,255,0.65)';
+                        ctx.beginPath();
+                        ctx.arc(points[i].x * canvas.width, points[i].y * canvas.height, 1.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    raf = requestAnimationFrame(draw);
+                };
+
+                raf = requestAnimationFrame(draw);
+                return () => {
+                    cancelAnimationFrame(raf);
+                    window.removeEventListener('resize', resize);
+                };
+            }, [enabled, liteMode]);
+            return <canvas ref={ref} className="absolute inset-0 pointer-events-none opacity-55" aria-hidden="true" />;
+        };
+
+        const GlassCard = ({ children, className = '' }) => <section className={`zen-glass kinetic-lift ${className}`}>{children}</section>;
+
+        const FeaturedModules = ({ track }) => {
+            const tiles = [
+                { title: 'AI Pioneer Program', subtitle: 'Youth deployments + proof of work', action: 'Open Program' },
+                { title: 'Blockchain Credentials', subtitle: 'Portable verified achievements', action: 'Verify' },
+                { title: 'AI Arena', subtitle: 'Frontier model access @ us.zenai.world', action: 'Launch', href: 'https://us.zenai.world' },
+                { title: 'Dashboards & Ops', subtitle: 'Automated workflows + live telemetry', action: 'Inspect' },
+            ];
+            return (
+                <div className="grid md:grid-cols-2 gap-4 pt-4">
+                    {tiles.map((t) => (
+                        <GlassCard key={t.title} className="p-4 min-h-28 flex flex-col justify-between">
+                            <div>
+                                <h3 className="font-semibold text-sm tracking-wide">{t.title}</h3>
+                                <p className="text-xs opacity-75 mt-1">{t.subtitle}</p>
+                            </div>
+                            <a href={t.href || '#'} target={t.href ? '_blank' : undefined} rel="noreferrer" onClick={() => track('featured_tile_click', { tile: t.title })} className="zen-focus-ring mt-3 inline-flex w-fit items-center gap-2 px-3 py-1.5 text-[11px] rounded-full border border-white/30 hover:border-cyan-200/70">
+                                {t.action} <ArrowRight size={12} />
+                            </a>
+                        </GlassCard>
+                    ))}
+                </div>
+            );
+        };
+
         const Button = ({ children, primary, design, icon: Icon, onClick }) => {
             const base = `px-8 py-3 flex items-center justify-center font-bold transition-all active:scale-95 ${design.radius} cursor-pointer select-none`;
             
@@ -338,7 +544,7 @@
             );
         };
 
-        const LandingView = ({ data }) => {
+        const LandingView = ({ data, track, densityMode, focusMode, storyMode, featureFlags }) => {
             const { design } = data;
             
             // Console Layout Override
@@ -369,23 +575,24 @@
                     {design.threeConfig && <ThreeBackground config={design.threeConfig} color={design.colors.primary} />}
 
                     {/* Navbar */}
-                    <nav className={`h-16 px-6 flex items-center justify-between border-b ${design.colors.border} ${design.colors.surface} backdrop-blur-md z-30 shrink-0`}>
+                    {!focusMode && <nav className={`h-16 px-6 flex items-center justify-between border-b ${design.colors.border} ${design.colors.surface} backdrop-blur-md z-30 shrink-0`}>
                         <div className="flex items-center gap-2 text-xl font-bold tracking-tighter">
                             <Hexagon className={`w-6 h-6 ${design.colors.text}`} /> {data.name}
                         </div>
-                        <div className="hidden md:flex gap-4"><Button design={design}>Login</Button><Button design={design} primary>Access</Button></div>
-                    </nav>
+                        <div className="hidden md:flex gap-4"><Button design={design} onClick={() => track('nav_login')}>Login</Button><Button design={design} primary onClick={() => track('nav_access')}>Access</Button></div>
+                    </nav>}
 
                     {/* Hero Content */}
-                    <div className={`flex-1 flex flex-col justify-center relative z-20 p-6 md:p-12 overflow-y-auto ${design.layout === 'centered' ? 'items-center text-center' : ''} ${design.layout === 'split' ? 'md:grid md:grid-cols-2 gap-8 items-center' : ''} ${design.layout === 'asymmetric' ? 'items-start pl-10 md:pl-24' : ''}`}>
+                    <div onScroll={() => track('scroll_depth')} className={`flex-1 flex flex-col justify-center relative z-20 ${densityMode === 'calm' ? 'p-6 md:p-12' : densityMode === 'dense' ? 'p-4 md:p-8' : 'p-5 md:p-10'} overflow-y-auto ${design.layout === 'centered' ? 'items-center text-center' : ''} ${design.layout === 'split' ? 'md:grid md:grid-cols-2 gap-8 items-center' : ''} ${design.layout === 'asymmetric' ? 'items-start pl-10 md:pl-24' : ''}`}>
                         
-                        <div className={`space-y-6 ${design.layout === 'asymmetric' ? 'md:w-2/3' : ''}`}>
+                        <div className={`space-y-6 ${design.layout === 'asymmetric' ? 'md:w-2/3' : ''} ${storyMode ? 'max-w-3xl' : ''}`}>
                             <h1 className="text-5xl md:text-8xl font-black leading-[0.9] tracking-tighter mix-blend-overlay break-words">{data.tagline}</h1>
                             <p className="text-lg md:text-xl opacity-80 max-w-xl leading-relaxed">{data.description}</p>
                             <div className={`flex flex-wrap gap-4 pt-4 ${design.layout === 'centered' ? 'justify-center' : ''}`}>
-                                <Button design={design} primary icon={ArrowRight} onClick={() => {}}>Initialize</Button>
-                                <Button design={design} onClick={() => {}}>Docs</Button>
+                                <Button design={design} primary icon={ArrowRight} onClick={() => track('hero_initialize')}>Initialize</Button>
+                                <Button design={design} onClick={() => track('hero_docs')}>Docs</Button>
                             </div>
+                            {featureFlags.isometricTiles && <FeaturedModules track={track} />}
                         </div>
 
                         {/* Visual for Split/Grid */}
@@ -401,13 +608,13 @@
                     </div>
 
                     {/* Footer Stats */}
-                    <div className={`h-20 border-t ${design.colors.border} ${design.colors.surface} flex items-center justify-around z-30 shrink-0 text-sm`}>
+                    {!focusMode && <div className={`h-20 border-t ${design.colors.border} ${design.colors.surface} flex items-center justify-around z-30 shrink-0 text-sm`}>
                         {data.features.map((f, i) => (
-                            <div key={i} className="flex items-center gap-2 opacity-70 hidden md:flex">
+                            <div key={i} className="flex items-center gap-2 opacity-70 hidden md:flex" onMouseEnter={() => track('feature_hover', { feature: f.title })}>
                                 <f.icon size={16} /> <span className="font-bold">{f.title}</span>
                             </div>
                         ))}
-                    </div>
+                    </div>}
                 </div>
             );
         };
@@ -446,6 +653,23 @@
             const [data, setData] = useState(null);
             const [autoMode, setAutoMode] = useState(true);
             const [logs, setLogs] = useState(['Omni-System initialized.', 'Dream state active.']);
+            const [featureFlags, setFeatureFlags] = useState(() => {
+                try {
+                    return { ...defaultFeatureFlags, ...(JSON.parse(localStorage.getItem('zenFeatureFlags') || '{}')) };
+                } catch {
+                    return defaultFeatureFlags;
+                }
+            });
+            const [densityMode, setDensityMode] = useState('standard');
+            const [focusMode, setFocusMode] = useState(false);
+            const [storyMode, setStoryMode] = useState(false);
+            const [liteMode, setLiteMode] = useState(false);
+            const [paletteOpen, setPaletteOpen] = useState(false);
+            const [whyPanelOpen, setWhyPanelOpen] = useState(false);
+            const [perfStats, setPerfStats] = useState({ fps: 60, dips: 0, longTasks: 0 });
+            const [reorderModules, setReorderModules] = useState([]);
+            const reducedMotion = usePrefersReducedMotion();
+            const { telemetry, track } = useTelemetry();
             
             const addLog = useCallback((msg) => {
                 setLogs(prev => [...prev.slice(-10), msg]); // Keep log short
@@ -455,6 +679,91 @@
                 if (window.THREE) addLog('WebGL Geometry Engine Online.');
                 setData(generateVenture(prompt));
             }, []);
+
+            useEffect(() => {
+                localStorage.setItem('zenFeatureFlags', JSON.stringify(featureFlags));
+            }, [featureFlags]);
+
+            useEffect(() => {
+                const start = performance.now();
+                const onAction = () => {
+                    track('time_to_first_action_ms', { value: Math.round(performance.now() - start) });
+                    window.removeEventListener('pointerdown', onAction);
+                    window.removeEventListener('keydown', onAction);
+                };
+                window.addEventListener('pointerdown', onAction, { once: true });
+                window.addEventListener('keydown', onAction, { once: true });
+                return () => {
+                    window.removeEventListener('pointerdown', onAction);
+                    window.removeEventListener('keydown', onAction);
+                };
+            }, [track]);
+
+            useEffect(() => {
+                let raf = 0;
+                let frames = 0;
+                let last = performance.now();
+                let dips = 0;
+                const loop = (now) => {
+                    frames += 1;
+                    if (now - last >= 1000) {
+                        const fps = Math.round((frames * 1000) / (now - last));
+                        if (fps < 45) dips += 1;
+                        setPerfStats(prev => ({ ...prev, fps, dips }));
+                        if (dips > 2) setLiteMode(true);
+                        frames = 0;
+                        last = now;
+                    }
+                    raf = requestAnimationFrame(loop);
+                };
+                raf = requestAnimationFrame(loop);
+
+                let observer;
+                if (window.PerformanceObserver) {
+                    observer = new PerformanceObserver((list) => {
+                        const longTasks = list.getEntries().filter(e => e.duration > 50).length;
+                        if (longTasks) setPerfStats(prev => ({ ...prev, longTasks: prev.longTasks + longTasks }));
+                    });
+                    try { observer.observe({ type: 'longtask', buffered: true }); } catch (e) {}
+                }
+
+                return () => {
+                    cancelAnimationFrame(raf);
+                    observer?.disconnect();
+                };
+            }, []);
+
+            useEffect(() => {
+                if (!featureFlags.adaptiveUI) return;
+                const keyboardUsage = telemetry.time_to_first_action_ms ? (telemetry.hero_docs || 0) + (telemetry.nav_login || 0) : 0;
+                const engagement = (telemetry.featured_tile_click || 0) + (telemetry.hero_initialize || 0);
+                const reasons = [];
+                if (engagement > 3) {
+                    setReorderModules(['AI Arena', 'AI Pioneer Program', 'Dashboards & Ops']);
+                    reasons.push('High engagement with featured modules, prioritizing related surfaces.');
+                }
+                if (keyboardUsage > 2) {
+                    setFeatureFlags(prev => ({ ...prev, commandPalette: true }));
+                    reasons.push('Frequent keyboard interaction detected, surfacing command palette hints.');
+                }
+                if (perfStats.dips > 2 || perfStats.longTasks > 5) {
+                    setLiteMode(true);
+                    reasons.push('Performance dips detected, enabling lite mode and reducing heavy effects.');
+                }
+                if (reasons.length) addLog(`Adaptation: ${reasons[0]}`);
+            }, [telemetry, perfStats, featureFlags.adaptiveUI]);
+
+            useEffect(() => {
+                const onKey = (e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                        e.preventDefault();
+                        if (featureFlags.commandPalette) setPaletteOpen(v => !v);
+                    }
+                    if (e.key === 'Escape') setPaletteOpen(false);
+                };
+                window.addEventListener('keydown', onKey);
+                return () => window.removeEventListener('keydown', onKey);
+            }, [featureFlags.commandPalette]);
 
             // Omni-Loop
             useEffect(() => {
@@ -493,11 +802,22 @@
             const handleGenerate = () => {
                 setAutoMode(false);
                 addLog('Manual Override.');
+                 track('manual_generate', { prompt });
                 setData(generateVenture(prompt));
             };
 
+            const quickActions = [
+                { label: 'Toggle Focus', onRun: () => setFocusMode(v => !v) },
+                { label: 'Density: Calm', onRun: () => setDensityMode('calm') },
+                { label: 'Density: Dense', onRun: () => setDensityMode('dense') },
+                { label: 'Story Mode', onRun: () => setStoryMode(v => !v) },
+                { label: 'Open AI Arena', onRun: () => window.open('https://us.zenai.world', '_blank') },
+            ];
+
             return (
-                <div className="w-full h-full flex flex-col bg-black text-white">
+                <div className="w-full h-full flex flex-col bg-black text-white" onClick={() => track('click_heat_root')}>
+                    {featureFlags.ambientBackdrop && <AmbientBackdrop enabled={!liteMode && !reducedMotion} reducedMotion={reducedMotion} />}
+                    {featureFlags.particles && <ParticleConstellation enabled={!reducedMotion} liteMode={liteMode} />}
                     <div className="h-12 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0 z-50">
                         <div className="flex items-center gap-2 font-bold text-xs"><div className="w-6 h-6 bg-white text-black rounded flex items-center justify-center">Z</div> ZEN OMNI V6</div>
                         <div className="flex-1 max-w-md mx-4 relative">
@@ -516,8 +836,43 @@
                     </div>
 
                     <div className="flex-1 relative overflow-hidden">
-                        {data && <LandingView data={data} />}
+                        {data && <LandingView data={data} track={track} densityMode={densityMode} focusMode={focusMode} storyMode={featureFlags.storyMode && storyMode} featureFlags={featureFlags} />}
                         <AgentTerminal logs={logs} />
+
+                        {featureFlags.commandPalette && paletteOpen && (
+                            <div className="absolute inset-0 z-[70] bg-black/65 backdrop-blur-sm flex items-start justify-center pt-20" role="dialog" aria-modal="true">
+                                <GlassCard className="w-full max-w-xl p-4">
+                                    <div className="text-xs uppercase tracking-[0.25em] opacity-70 pb-2">Command Palette</div>
+                                    <div className="space-y-2">
+                                        {quickActions.map((a) => (
+                                            <button key={a.label} className="zen-focus-ring w-full text-left px-3 py-2 rounded-xl border border-white/15 hover:bg-white/10" onClick={() => { a.onRun(); setPaletteOpen(false); track('command_palette_action', { action: a.label }); }}>{a.label}</button>
+                                        ))}
+                                    </div>
+                                </GlassCard>
+                            </div>
+                        )}
+
+                        {!focusMode && (
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-4 z-40 zen-glass px-3 py-2 flex gap-2">
+                                {['AI Arena', 'Credentials', 'Ops', 'Pioneer'].map((dockItem) => (
+                                    <button key={dockItem} onClick={() => track('dock_click', { item: dockItem })} className="zen-focus-ring text-[11px] rounded-full px-3 py-1 border border-white/20 hover:border-cyan-300/80">{dockItem}</button>
+                                ))}
+                                <button className="zen-focus-ring text-[11px] rounded-full px-3 py-1 border border-white/20" onClick={() => setWhyPanelOpen(v => !v)}>Why?</button>
+                            </div>
+                        )}
+
+                        {whyPanelOpen && (
+                            <GlassCard className="absolute top-4 right-4 w-80 z-40 p-4 text-xs space-y-2">
+                                <h3 className="text-sm font-semibold">Why you're seeing this</h3>
+                                <p className="opacity-75">Adaptive UI analyzes local interaction and performance signals to tune density, shortcuts, and visual intensity.</p>
+                                <ul className="space-y-1 opacity-80">
+                                    <li>FPS: {perfStats.fps} (dips: {perfStats.dips})</li>
+                                    <li>Long tasks: {perfStats.longTasks}</li>
+                                    <li>Lite mode: {liteMode ? 'on' : 'off'}</li>
+                                    <li>Module priority: {reorderModules.join(' → ') || 'default'}</li>
+                                </ul>
+                            </GlassCard>
+                        )}
                     </div>
                 </div>
             );
