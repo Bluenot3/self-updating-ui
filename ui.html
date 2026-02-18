@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ZEN Venture Engine V6 (Stable Embed)</title>
+    
+    <!-- 1. Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Stable UMD build for icons -->
+    <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
+
+    <style>
+        /* CRITICAL: Lock the viewport to prevent "shaking" or parent scrolling */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Prevents scrollbars on the iframe body */
+            background-color: #000;
+            position: fixed; /* Locks the frame in place */
+            top: 0;
+            left: 0;
+        }
+        #root {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Hide internal scrollbars for aesthetic but allow scrolling */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Transitions for smooth theme swapping */
+        .theme-transition { transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        /* Glitch Effect Utilities */
+        @keyframes glitch {
+            0% { transform: translate(0) }
+            20% { transform: translate(-2px, 2px) }
+            40% { transform: translate(-2px, -2px) }
+            60% { transform: translate(2px, 2px) }
+            80% { transform: translate(2px, -2px) }
+            100% { transform: translate(0) }
+        }
+        .glitch-active:hover { animation: glitch 0.2s cubic-bezier(.25, .46, .45, .94) both infinite; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+        // --- 2. Icon Utilities (Safe Adapter) ---
+        const Icon = ({ name, size = 24, className, ...props }) => {
+            const lucide = window.lucide;
+            if (!lucide || !lucide.icons || !lucide.icons[name]) return null;
+            const iconData = lucide.icons[name];
+            const [tag, attrs, children] = iconData;
+            return React.createElement('svg', 
+                { ...attrs, ...props, width: size, height: size, className: className, stroke: "currentColor" },
+                children ? children.map(([childTag, childAttrs], i) => React.createElement(childTag, { ...childAttrs, key: i })) : null
+            );
+        };
+
+        // Icons
+        const Rocket = (p) => <Icon name="Rocket" {...p} />;
+        const Zap = (p) => <Icon name="Zap" {...p} />;
+        const Globe = (p) => <Icon name="Globe" {...p} />;
+        const Shield = (p) => <Icon name="Shield" {...p} />;
+        const Hexagon = (p) => <Icon name="Hexagon" {...p} />;
+        const Activity = (p) => <Icon name="Activity" {...p} />;
+        const Play = (p) => <Icon name="Play" {...p} />;
+        const Pause = (p) => <Icon name="Pause" {...p} />;
+        const Cpu = (p) => <Icon name="Cpu" {...p} />;
+        const ArrowRight = (p) => <Icon name="ArrowRight" {...p} />;
+
+        // --- 3. Robust Three.js Engine (ResizeObserver) ---
+        const ThreeBackground = ({ config, color }) => {
+            const mountRef = useRef(null);
+            
+            useEffect(() => {
+                if (!mountRef.current || !window.THREE) return;
+                const THREE = window.THREE;
+
+                // Scene Setup
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, mountRef.current.clientWidth / mountRef.current.clientHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
+                
+                renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+                
+                // Cleanup previous canvas
+                while(mountRef.current.firstChild) mountRef.current.removeChild(mountRef.current.firstChild);
+                mountRef.current.appendChild(renderer.domElement);
+
+                // Geometry Logic
+                const group = new THREE.Group();
+                let geometry, particles;
+                
+                // Color Extraction
+                let hex = 0xffffff;
+                if (color.includes('cyan')) hex = 0x06b6d4;
+                else if (color.includes('purple')) hex = 0x9333ea;
+                else if (color.includes('blue')) hex = 0x2563eb;
+                else if (color.includes('green')) hex = 0x10b981;
+                else if (color.includes('red')) hex = 0xef4444;
+                else if (color.includes('yellow')) hex = 0xeab308;
+                else if (color.includes('orange')) hex = 0xf97316;
+                else if (color.includes('pink')) hex = 0xec4899;
+                else if (color.includes('slate')) hex = 0x64748b;
+
+                const material = new THREE.MeshBasicMaterial({ color: hex, wireframe: config.wireframe, transparent: true, opacity: 0.25 });
+
+                // Shape Generation
+                if (config.shape === 'torus') geometry = new THREE.TorusKnotGeometry(10, 3, 100, 16);
+                else if (config.shape === 'icosahedron') geometry = new THREE.IcosahedronGeometry(12, 1);
+                else if (config.shape === 'grid') {
+                    geometry = new THREE.PlaneGeometry(80, 80, 40, 40);
+                    material.wireframe = true;
+                    material.opacity = 0.15;
+                }
+                else if (config.shape === 'cubes') {
+                    for (let i = 0; i < 30; i++) {
+                        const m = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), material);
+                        m.position.set((Math.random()-0.5)*50, (Math.random()-0.5)*50, (Math.random()-0.5)*20);
+                        m.rotation.set(Math.random(), Math.random(), Math.random());
+                        group.add(m);
+                    }
+                }
+                else if (config.shape === 'rings') {
+                    group.add(new THREE.Mesh(new THREE.TorusGeometry(15, 0.2, 16, 100), material));
+                    group.add(new THREE.Mesh(new THREE.TorusGeometry(25, 0.2, 16, 100), material));
+                    group.rotation.x = 1.2;
+                }
+                else if (config.shape === 'helix') {
+                    const points = [];
+                    for (let i = 0; i < 150; i++) {
+                        const t = i * 0.4;
+                        points.push(new THREE.Vector3(Math.cos(t)*6, t-30, Math.sin(t)*6));
+                        points.push(new THREE.Vector3(Math.cos(t+Math.PI)*6, t-30, Math.sin(t+Math.PI)*6));
+                    }
+                    const m = new THREE.Points(new THREE.BufferGeometry().setFromPoints(points), new THREE.PointsMaterial({ color: hex, size: 0.4 }));
+                    group.add(m);
+                }
+                else if (config.shape === 'rain' || config.shape === 'particles') {
+                    geometry = new THREE.BufferGeometry();
+                    const count = config.shape === 'rain' ? 1200 : 800;
+                    const pos = new Float32Array(count * 3);
+                    for(let i=0; i<count*3; i++) pos[i] = (Math.random()-0.5) * (config.shape === 'rain' ? 100 : 70);
+                    geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                    particles = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.25, color: hex }));
+                    scene.add(particles);
+                }
+
+                if (geometry && !particles && group.children.length === 0) {
+                    group.add(new THREE.Mesh(geometry, material));
+                }
+                if (group.children.length > 0) scene.add(group);
+                
+                camera.position.z = 40;
+
+                // Animation Loop
+                let reqId;
+                const animate = () => {
+                    reqId = requestAnimationFrame(animate);
+                    
+                    if (group) {
+                        group.rotation.x += 0.002 * config.speed;
+                        group.rotation.y += 0.005 * config.speed;
+                    }
+                    if (config.shape === 'grid' && group.children[0]) {
+                        group.rotation.x = 1.6;
+                        group.position.y = -10;
+                        group.rotation.z += 0.002;
+                    }
+                    if ((config.shape === 'rain' || config.shape === 'particles') && particles) {
+                        const positions = particles.geometry.attributes.position.array;
+                        const dropSpeed = config.shape === 'rain' ? 0.8 : 0.1;
+                        for(let i=1; i<positions.length; i+=3) {
+                            positions[i] -= dropSpeed * config.speed;
+                            if (positions[i] < -50) positions[i] = 50;
+                        }
+                        particles.geometry.attributes.position.needsUpdate = true;
+                        if (config.shape !== 'rain') particles.rotation.y += 0.001 * config.speed;
+                    }
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                // Robust Resize Observer (Fixes the shaking/sizing issue)
+                const resizeObserver = new ResizeObserver(entries => {
+                    for (let entry of entries) {
+                        const { width, height } = entry.contentRect;
+                        camera.aspect = width / height;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(width, height);
+                    }
+                });
+                
+                if (mountRef.current) resizeObserver.observe(mountRef.current);
+
+                return () => {
+                    cancelAnimationFrame(reqId);
+                    resizeObserver.disconnect();
+                    if (mountRef.current) mountRef.current.innerHTML = '';
+                    geometry?.dispose();
+                    material?.dispose();
+                };
+            }, [config, color]); // Re-run when config changes
+
+            return <div ref={mountRef} className="absolute inset-0 z-0 opacity-100 pointer-events-none transition-opacity duration-1000" />;
+        };
+
+        // --- 4. Logic & Themes ---
+
+        function getRandomColor(variants) {
+            return variants[Math.floor(Math.random() * variants.length)];
+        }
+
+        function generateDesignSystem(prompt) {
+            const p = prompt.toLowerCase();
+            
+            // Extensive Theme List
+            const themes = [
+                'cyber', 'neo', 'swiss', 'glass', 'lux', 'vapor', 'monochrome', 'corporate', 
+                'terminal', 'spatial', 'glitch', 'biopunk', 'blueprint', 'industrial', 'solarpunk',
+                'acid', 'nordic', 'paper', 'matrix', 'sunset', 'deepsea', 'racing', 'gothic',
+                'bubblegum', 'military', 'royal', 'slate', 'candy', 'galaxy', 'wireframe'
+            ];
+            
+            // Randomly select if no keyword match
+            let theme = themes[Math.floor(Math.random() * themes.length)];
+            
+            // Keyword Overrides
+            if (p.includes('hack') || p.includes('code')) theme = 'terminal';
+            else if (p.includes('bio') || p.includes('green')) theme = 'biopunk';
+            else if (p.includes('game') || p.includes('arcade')) theme = 'vapor';
+            else if (p.includes('money') || p.includes('finance')) theme = 'corporate';
+            else if (p.includes('space') || p.includes('future')) theme = 'spatial';
+            else if (p.includes('sea') || p.includes('water')) theme = 'deepsea';
+            
+            // Theme Configs
+            const systems = {
+                cyber: { theme: 'cyber', layout: 'asymmetric', colors: { bg: 'bg-black', surface: 'bg-zinc-900', primary: 'bg-cyan-500', text: 'text-cyan-50', border: 'border-cyan-500/30' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap', font: '"Share Tech Mono"', threeConfig: { shape: 'grid', speed: 1, wireframe: true } },
+                neo: { theme: 'neo', layout: 'split', colors: { bg: 'bg-gray-100', surface: 'bg-white', primary: 'bg-purple-600', text: 'text-gray-900', border: 'border-black' }, radius: 'rounded-md', fontUrl: 'https://fonts.googleapis.com/css2?family=Lexend:wght@700&display=swap', font: '"Lexend"', threeConfig: { shape: 'cubes', speed: 0.5, wireframe: false } },
+                swiss: { theme: 'swiss', layout: 'centered', colors: { bg: 'bg-white', surface: 'bg-gray-50', primary: 'bg-blue-700', text: 'text-gray-900', border: 'border-gray-200' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap', font: '"Inter"', threeConfig: { shape: 'particles', speed: 0.1, wireframe: false } },
+                glass: { theme: 'glass', layout: 'centered', colors: { bg: 'bg-slate-900', surface: 'bg-white/10 backdrop-blur-xl', primary: 'bg-blue-500', text: 'text-white', border: 'border-white/10' }, radius: 'rounded-3xl', fontUrl: 'https://fonts.googleapis.com/css2?family=Outfit:wght@500&display=swap', font: '"Outfit"', threeConfig: { shape: 'particles', speed: 0.5, wireframe: false } },
+                lux: { theme: 'lux', layout: 'split', colors: { bg: 'bg-neutral-950', surface: 'bg-neutral-900', primary: 'bg-amber-500', text: 'text-neutral-100', border: 'border-amber-500/20' }, radius: 'rounded-sm', fontUrl: 'https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap', font: '"Cinzel"', threeConfig: { shape: 'icosahedron', speed: 0.2, wireframe: true } },
+                vapor: { theme: 'vapor', layout: 'grid', colors: { bg: 'bg-indigo-950', surface: 'bg-indigo-900', primary: 'bg-pink-500', text: 'text-white', border: 'border-pink-500' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap', font: '"Press Start 2P"', threeConfig: { shape: 'torus', speed: 2, wireframe: true } },
+                monochrome: { theme: 'monochrome', layout: 'asymmetric', colors: { bg: 'bg-black', surface: 'bg-neutral-900', primary: 'bg-white', text: 'text-white', border: 'border-white' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&display=swap', font: '"Space Grotesk"', threeConfig: { shape: 'grid', speed: 0.3, wireframe: true } },
+                corporate: { theme: 'corporate', layout: 'centered', colors: { bg: 'bg-slate-50', surface: 'bg-white', primary: 'bg-blue-800', text: 'text-slate-900', border: 'border-slate-200' }, radius: 'rounded-md', fontUrl: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@700&display=swap', font: '"DM Sans"', threeConfig: { shape: 'particles', speed: 0.1, wireframe: false } },
+                terminal: { theme: 'terminal', layout: 'console', colors: { bg: 'bg-black', surface: 'bg-green-950', primary: 'bg-green-500', text: 'text-green-500', border: 'border-green-800' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=VT323&display=swap', font: '"VT323"', threeConfig: { shape: 'grid', speed: 0.5, wireframe: true } },
+                spatial: { theme: 'spatial', layout: 'asymmetric', colors: { bg: 'bg-black', surface: 'bg-white/5 backdrop-blur-2xl', primary: 'bg-white', text: 'text-white', border: 'border-white/20' }, radius: 'rounded-[2rem]', fontUrl: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&display=swap', font: '"Space Grotesk"', threeConfig: { shape: 'torus', speed: 0.3, wireframe: false } },
+                glitch: { theme: 'glitch', layout: 'split', colors: { bg: 'bg-neutral-950', surface: 'bg-red-950/20', primary: 'bg-red-600', text: 'text-white', border: 'border-red-600' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=Rubik+Glitch&family=Rubik:wght@700&display=swap', font: '"Rubik Glitch"', threeConfig: { shape: 'icosahedron', speed: 3, wireframe: true } },
+                biopunk: { theme: 'biopunk', layout: 'asymmetric', colors: { bg: 'bg-green-950', surface: 'bg-green-900/50', primary: 'bg-green-400', text: 'text-green-100', border: 'border-green-500/50' }, radius: 'rounded-2xl', fontUrl: 'https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&display=swap', font: '"Chakra Petch"', threeConfig: { shape: 'helix', speed: 0.5, wireframe: false } },
+                blueprint: { theme: 'blueprint', layout: 'grid', colors: { bg: 'bg-blue-900', surface: 'bg-blue-800', primary: 'bg-white', text: 'text-blue-50', border: 'border-blue-300/50' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=Courier+Prime:wght@700&display=swap', font: '"Courier Prime"', threeConfig: { shape: 'grid', speed: 0.2, wireframe: true } },
+                industrial: { theme: 'industrial', layout: 'split', colors: { bg: 'bg-stone-900', surface: 'bg-stone-800', primary: 'bg-yellow-500', text: 'text-stone-100', border: 'border-stone-700' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap', font: '"Bebas Neue"', threeConfig: { shape: 'cubes', speed: 0.5, wireframe: false } },
+                solarpunk: { theme: 'solarpunk', layout: 'centered', colors: { bg: 'bg-yellow-50', surface: 'bg-yellow-100', primary: 'bg-green-600', text: 'text-green-900', border: 'border-green-200' }, radius: 'rounded-3xl', fontUrl: 'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@700&display=swap', font: '"Josefin Sans"', threeConfig: { shape: 'icosahedron', speed: 0.1, wireframe: false } },
+                acid: { theme: 'acid', layout: 'asymmetric', colors: { bg: 'bg-fuchsia-950', surface: 'bg-fuchsia-900', primary: 'bg-lime-400', text: 'text-fuchsia-50', border: 'border-lime-400' }, radius: 'rounded-full', fontUrl: 'https://fonts.googleapis.com/css2?family=Righteous&display=swap', font: '"Righteous"', threeConfig: { shape: 'torus', speed: 2.5, wireframe: true } },
+                nordic: { theme: 'nordic', layout: 'split', colors: { bg: 'bg-slate-50', surface: 'bg-slate-100', primary: 'bg-slate-800', text: 'text-slate-900', border: 'border-slate-300' }, radius: 'rounded-sm', fontUrl: 'https://fonts.googleapis.com/css2?family=Manrope:wght@700&display=swap', font: '"Manrope"', threeConfig: { shape: 'cubes', speed: 0.1, wireframe: true } },
+                paper: { theme: 'paper', layout: 'centered', colors: { bg: 'bg-orange-50', surface: 'bg-orange-100', primary: 'bg-slate-900', text: 'text-slate-900', border: 'border-slate-900/10' }, radius: 'rounded-sm', fontUrl: 'https://fonts.googleapis.com/css2?family=Crimson+Text:wght@700&display=swap', font: '"Crimson Text"', threeConfig: { shape: 'particles', speed: 0.1, wireframe: true } },
+                matrix: { theme: 'matrix', layout: 'console', colors: { bg: 'bg-black', surface: 'bg-black', primary: 'bg-green-500', text: 'text-green-500', border: 'border-green-900' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@700&display=swap', font: '"Source Code Pro"', threeConfig: { shape: 'rain', speed: 1.5, wireframe: false } },
+                sunset: { theme: 'sunset', layout: 'split', colors: { bg: 'bg-rose-950', surface: 'bg-rose-900', primary: 'bg-orange-400', text: 'text-orange-50', border: 'border-orange-500/30' }, radius: 'rounded-xl', fontUrl: 'https://fonts.googleapis.com/css2?family=Abril+Fatface&display=swap', font: '"Abril Fatface"', threeConfig: { shape: 'icosahedron', speed: 0.2, wireframe: false } },
+                deepsea: { theme: 'deepsea', layout: 'asymmetric', colors: { bg: 'bg-cyan-950', surface: 'bg-cyan-900', primary: 'bg-cyan-400', text: 'text-cyan-50', border: 'border-cyan-500/20' }, radius: 'rounded-3xl', fontUrl: 'https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&display=swap', font: '"Rajdhani"', threeConfig: { shape: 'particles', speed: 0.2, wireframe: true } },
+                racing: { theme: 'racing', layout: 'split', colors: { bg: 'bg-red-600', surface: 'bg-white', primary: 'bg-black', text: 'text-white', border: 'border-white' }, radius: 'rounded-lg', fontUrl: 'https://fonts.googleapis.com/css2?family=Teko:wght@700&display=swap', font: '"Teko"', threeConfig: { shape: 'torus', speed: 4, wireframe: true } },
+                gothic: { theme: 'gothic', layout: 'centered', colors: { bg: 'bg-zinc-950', surface: 'bg-zinc-900', primary: 'bg-zinc-500', text: 'text-zinc-200', border: 'border-zinc-800' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&display=swap', font: '"UnifrakturMaguntia"', threeConfig: { shape: 'rings', speed: 0.1, wireframe: true } },
+                bubblegum: { theme: 'bubblegum', layout: 'centered', colors: { bg: 'bg-pink-100', surface: 'bg-white', primary: 'bg-pink-500', text: 'text-pink-900', border: 'border-pink-300' }, radius: 'rounded-[3rem]', fontUrl: 'https://fonts.googleapis.com/css2?family=Quicksand:wght@700&display=swap', font: '"Quicksand"', threeConfig: { shape: 'icosahedron', speed: 0.5, wireframe: false } },
+                military: { theme: 'military', layout: 'grid', colors: { bg: 'bg-stone-800', surface: 'bg-stone-700', primary: 'bg-yellow-100', text: 'text-yellow-50', border: 'border-stone-600' }, radius: 'rounded-sm', fontUrl: 'https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap', font: '"Black Ops One"', threeConfig: { shape: 'grid', speed: 0.1, wireframe: true } },
+                royal: { theme: 'royal', layout: 'centered', colors: { bg: 'bg-violet-950', surface: 'bg-violet-900', primary: 'bg-amber-400', text: 'text-white', border: 'border-amber-500/50' }, radius: 'rounded-lg', fontUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap', font: '"Playfair Display"', threeConfig: { shape: 'rings', speed: 0.2, wireframe: false } },
+                slate: { theme: 'slate', layout: 'split', colors: { bg: 'bg-slate-900', surface: 'bg-slate-800', primary: 'bg-slate-400', text: 'text-slate-100', border: 'border-slate-700' }, radius: 'rounded-md', fontUrl: 'https://fonts.googleapis.com/css2?family=Work+Sans:wght@700&display=swap', font: '"Work Sans"', threeConfig: { shape: 'cubes', speed: 0.3, wireframe: true } },
+                candy: { theme: 'candy', layout: 'asymmetric', colors: { bg: 'bg-rose-50', surface: 'bg-white', primary: 'bg-rose-500', text: 'text-rose-900', border: 'border-rose-200' }, radius: 'rounded-2xl', fontUrl: 'https://fonts.googleapis.com/css2?family=Fredoka:wght@600&display=swap', font: '"Fredoka"', threeConfig: { shape: 'torus', speed: 1.5, wireframe: false } },
+                galaxy: { theme: 'galaxy', layout: 'centered', colors: { bg: 'bg-slate-950', surface: 'bg-slate-900', primary: 'bg-purple-500', text: 'text-white', border: 'border-purple-900' }, radius: 'rounded-full', fontUrl: 'https://fonts.googleapis.com/css2?family=Exo+2:wght@700&display=swap', font: '"Exo 2"', threeConfig: { shape: 'particles', speed: 0.3, wireframe: false } },
+                wireframe: { theme: 'wireframe', layout: 'grid', colors: { bg: 'bg-black', surface: 'bg-black', primary: 'bg-white', text: 'text-white', border: 'border-white' }, radius: 'rounded-none', fontUrl: 'https://fonts.googleapis.com/css2?family=Inconsolata:wght@700&display=swap', font: '"Inconsolata"', threeConfig: { shape: 'grid', speed: 0.5, wireframe: true } }
+            };
+
+            const selectedSystem = systems[theme] || systems['swiss'];
+            return selectedSystem;
+        }
+
+        function generateVenture(prompt) {
+            const prefixes = ['Zen', 'Aero', 'Lumina', 'Flux', 'Nova', 'Strata', 'Quant', 'Echo', 'Orbit', 'Hyper', 'Sol', 'Ion', 'Vortex', 'Apex', 'Titan', 'Onyx', 'Prism'];
+            const name = prefixes[Math.floor(Math.random() * prefixes.length)];
+            const sectors = ['Velocity', 'Security', 'Global'];
+            
+            return {
+                id: Math.random().toString(36),
+                name: name,
+                tagline: `The Future of ${prompt.split(' ').slice(0, 2).join(' ')}.`,
+                description: `Stop compromising on performance. ${name} leverages autonomous agents to deliver results that are 10x faster and 100% more reliable.`,
+                features: [
+                    { title: 'Velocity', desc: '10x Faster Deployment', icon: Zap },
+                    { title: 'Security', desc: 'End-to-End Encrypted', icon: Shield },
+                    { title: 'Global', desc: 'Edge Network', icon: Globe },
+                ],
+                metrics: [
+                    { label: 'Active', value: (Math.random()*50 + 5).toFixed(1) + 'k' },
+                    { label: 'Latency', value: (Math.random()*50).toFixed(0) + 'ms' },
+                    { label: 'Uptime', value: '99.9%' }
+                ],
+                design: generateDesignSystem(prompt)
+            };
+        }
+
+        // --- 5. Visual Components ---
+
+        const FontLoader = ({ url }) => <style>{`@import url('${url}');`}</style>;
+
+        const Button = ({ children, primary, design, icon: Icon, onClick }) => {
+            const base = `px-8 py-3 flex items-center justify-center font-bold transition-all active:scale-95 ${design.radius} cursor-pointer select-none`;
+            
+            // Heuristic to fix contrast issues (e.g. white text on white bg)
+            let textColor = 'text-white';
+            if (primary && ['bg-white', 'bg-gray-100', 'bg-yellow-50', 'bg-pink-100'].includes(design.colors.bg)) textColor = 'text-black';
+            
+            let style = primary 
+                ? `${design.colors.primary} ${textColor} hover:brightness-110 shadow-lg` 
+                : `${design.colors.surface} ${design.colors.text} border ${design.colors.border} hover:bg-opacity-80`;
+
+            if (design.theme === 'terminal') style = primary ? `bg-green-500 text-black` : `bg-transparent text-green-500 border border-green-500`;
+            if (design.theme === 'matrix') style = primary ? `bg-green-600 text-black` : `bg-transparent text-green-600 border border-green-800`;
+            if (design.theme === 'wireframe') style = primary ? `bg-white text-black` : `border border-white text-white`;
+
+            return (
+                <button onClick={onClick} className={`${base} ${style} relative overflow-hidden group`}>
+                    <span className="relative z-10 flex items-center gap-2">{children} {Icon && <Icon size={16} />}</span>
+                    {design.theme === 'glitch' && <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-100 mix-blend-difference"></div>}
+                </button>
+            );
+        };
+
+        const LandingView = ({ data }) => {
+            const { design } = data;
+            
+            // Console Layout Override
+            if (design.layout === 'console') {
+                return (
+                    <div className={`h-full w-full ${design.colors.bg} ${design.colors.text} font-mono p-8 overflow-hidden relative flex flex-col justify-center`}>
+                        {design.threeConfig && <ThreeBackground config={design.threeConfig} color={design.colors.primary} />}
+                        <div className="relative z-20 max-w-4xl mx-auto space-y-6 w-full">
+                            <div className={`border-b ${design.colors.border} pb-4 mb-4 flex justify-between opacity-70`}>
+                                <span>root@{data.name.toUpperCase()}:~# ./init_sequence.sh</span><span>SECURE</span>
+                            </div>
+                            <h1 className="text-6xl md:text-8xl font-bold uppercase tracking-widest">{data.name}</h1>
+                            <p className={`text-xl border-l-2 ${design.colors.border} pl-6 py-2`}>
+                                {'>'} {data.description}<br/>{'>'} STATUS: OPERATIONAL
+                            </p>
+                            <div className="pt-8"><Button design={design} primary onClick={()=>{}}>EXECUTE</Button></div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div 
+                    className={`h-full w-full overflow-hidden ${design.colors.bg} ${design.colors.text} relative flex flex-col theme-transition`}
+                    style={{ fontFamily: design.font.replace(/"/g, '') }}
+                >
+                    <FontLoader url={design.fontUrl} />
+                    {design.threeConfig && <ThreeBackground config={design.threeConfig} color={design.colors.primary} />}
+
+                    {/* Navbar */}
+                    <nav className={`h-16 px-6 flex items-center justify-between border-b ${design.colors.border} ${design.colors.surface} backdrop-blur-md z-30 shrink-0`}>
+                        <div className="flex items-center gap-2 text-xl font-bold tracking-tighter">
+                            <Hexagon className={`w-6 h-6 ${design.colors.text}`} /> {data.name}
+                        </div>
+                        <div className="hidden md:flex gap-4"><Button design={design}>Login</Button><Button design={design} primary>Access</Button></div>
+                    </nav>
+
+                    {/* Hero Content */}
+                    <div className={`flex-1 flex flex-col justify-center relative z-20 p-6 md:p-12 overflow-y-auto ${design.layout === 'centered' ? 'items-center text-center' : ''} ${design.layout === 'split' ? 'md:grid md:grid-cols-2 gap-8 items-center' : ''} ${design.layout === 'asymmetric' ? 'items-start pl-10 md:pl-24' : ''}`}>
+                        
+                        <div className={`space-y-6 ${design.layout === 'asymmetric' ? 'md:w-2/3' : ''}`}>
+                            <h1 className="text-5xl md:text-8xl font-black leading-[0.9] tracking-tighter mix-blend-overlay break-words">{data.tagline}</h1>
+                            <p className="text-lg md:text-xl opacity-80 max-w-xl leading-relaxed">{data.description}</p>
+                            <div className={`flex flex-wrap gap-4 pt-4 ${design.layout === 'centered' ? 'justify-center' : ''}`}>
+                                <Button design={design} primary icon={ArrowRight} onClick={() => {}}>Initialize</Button>
+                                <Button design={design} onClick={() => {}}>Docs</Button>
+                            </div>
+                        </div>
+
+                        {/* Visual for Split/Grid */}
+                        {(design.layout === 'split' || design.layout === 'grid') && (
+                            <div className={`hidden md:flex h-64 md:h-96 w-full ${design.colors.surface} ${design.colors.border} border ${design.radius} items-center justify-center relative overflow-hidden`}>
+                                <div className={`absolute inset-0 bg-gradient-to-br ${design.colors.primary} to-transparent opacity-20`}></div>
+                                <div className="relative z-10 text-center">
+                                    <div className="text-5xl font-black">{data.metrics[0].value}</div>
+                                    <div className="text-xs uppercase tracking-widest opacity-70">Active Users</div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer Stats */}
+                    <div className={`h-20 border-t ${design.colors.border} ${design.colors.surface} flex items-center justify-around z-30 shrink-0 text-sm`}>
+                        {data.features.map((f, i) => (
+                            <div key={i} className="flex items-center gap-2 opacity-70 hidden md:flex">
+                                <f.icon size={16} /> <span className="font-bold">{f.title}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const AgentTerminal = ({ logs }) => {
+            const containerRef = useRef(null);
+            
+            useEffect(() => {
+                if (containerRef.current) {
+                    // Safe scrolling that doesn't affect parent
+                    containerRef.current.scrollTop = containerRef.current.scrollHeight;
+                }
+            }, [logs]);
+
+            return (
+                <div className="fixed bottom-4 right-4 w-64 bg-black/90 backdrop-blur text-green-500 font-mono text-[10px] border border-green-900 rounded-lg shadow-2xl overflow-hidden z-50 pointer-events-none select-none">
+                    <div className="bg-green-900/20 px-3 py-1 flex justify-between items-center border-b border-green-900/50">
+                        <span className="flex items-center gap-2"><Cpu size={10} /> ZEN-OMNI-V6</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                    </div>
+                    <div ref={containerRef} className="h-20 overflow-y-auto p-2 space-y-1 scrollbar-hide">
+                        {logs.map((log, i) => (
+                            <div key={i} className="opacity-90 leading-tight truncate">
+                                <span className="text-gray-600">[{new Date().toLocaleTimeString().split(' ')[0]}]</span> {log}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 6. Main App ---
+
+        const ZenVentureEngineV6 = () => {
+            const [prompt, setPrompt] = useState('A decentralized autonomous organization');
+            const [data, setData] = useState(null);
+            const [autoMode, setAutoMode] = useState(true);
+            const [logs, setLogs] = useState(['Omni-System initialized.', 'Dream state active.']);
+            
+            const addLog = useCallback((msg) => {
+                setLogs(prev => [...prev.slice(-10), msg]); // Keep log short
+            }, []);
+
+            useEffect(() => {
+                if (window.THREE) addLog('WebGL Geometry Engine Online.');
+                setData(generateVenture(prompt));
+            }, []);
+
+            // Omni-Loop
+            useEffect(() => {
+                if (!autoMode) return;
+                
+                let isRunning = true;
+                let timeouts = [];
+
+                const runCycle = async () => {
+                    if (!isRunning) return;
+
+                    const sectors = ['Cyber', 'Bio', 'Space', 'Retro', 'Industrial', 'Luxury', 'Solar', 'Racing', 'Military', 'Candy'];
+                    const nextPrompt = `A ${sectors[Math.floor(Math.random() * sectors.length)]} startup`;
+                    
+                    addLog(`Dreaming: "${nextPrompt}"`);
+                    await new Promise(r => timeouts.push(setTimeout(r, 1200)));
+                    
+                    const nextState = generateVenture(nextPrompt);
+                    if (!isRunning) return;
+
+                    addLog(`> Theme: [${nextState.design.theme.toUpperCase()}]`);
+                    setData(prev => prev ? ({ ...prev, design: nextState.design }) : nextState);
+                    
+                    await new Promise(r => timeouts.push(setTimeout(r, 1500)));
+                    
+                    setData(prev => prev ? ({ ...prev, name: nextState.name, tagline: nextState.tagline, description: nextState.description }) : nextState);
+                    await new Promise(r => timeouts.push(setTimeout(r, 2500))); // Stay on screen longer
+
+                    if (isRunning) runCycle();
+                };
+
+                runCycle();
+                return () => { isRunning = false; timeouts.forEach(clearTimeout); };
+            }, [autoMode, addLog]);
+
+            const handleGenerate = () => {
+                setAutoMode(false);
+                addLog('Manual Override.');
+                setData(generateVenture(prompt));
+            };
+
+            return (
+                <div className="w-full h-full flex flex-col bg-black text-white">
+                    <div className="h-12 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0 z-50">
+                        <div className="flex items-center gap-2 font-bold text-xs"><div className="w-6 h-6 bg-white text-black rounded flex items-center justify-center">Z</div> ZEN OMNI V6</div>
+                        <div className="flex-1 max-w-md mx-4 relative">
+                            <input 
+                                value={prompt}
+                                onChange={(e) => setPrompt(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+                                className="w-full bg-black border border-neutral-700 rounded-full py-1 pl-3 pr-20 text-xs focus:outline-none focus:border-white transition-all"
+                                placeholder="Interrupt dream..."
+                            />
+                            <button onClick={handleGenerate} className="absolute right-1 top-0.5 bottom-0.5 px-3 rounded-full bg-white text-black text-[10px] font-bold uppercase">Generate</button>
+                        </div>
+                        <button onClick={() => setAutoMode(!autoMode)} className="text-[10px] font-mono border border-neutral-700 px-2 py-1 rounded hover:bg-neutral-800">
+                            {autoMode ? 'PAUSE' : 'RESUME'}
+                        </button>
+                    </div>
+
+                    <div className="flex-1 relative overflow-hidden">
+                        {data && <LandingView data={data} />}
+                        <AgentTerminal logs={logs} />
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ZenVentureEngineV6 />);
+    </script>
+</body>
+</html>
