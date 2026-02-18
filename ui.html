@@ -105,6 +105,7 @@
             box-shadow: 0 22px 48px rgba(0, 0, 0, 0.42);
         }
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
         .zen-caustic {
             background: linear-gradient(125deg, rgba(255,255,255,0.04) 10%, rgba(130, 230, 255, 0.18) 35%, rgba(177, 140, 255, 0.16) 58%, rgba(255,255,255,0.05) 84%);
             mix-blend-mode: screen;
@@ -118,6 +119,8 @@
             100% { transform: translateX(8%) translateY(5%) scale(1.08); }
         }
 
+=======
+>>>>>>> main
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
                 animation-duration: 1ms !important;
@@ -398,6 +401,7 @@
             storyMode: false,
             commandPalette: true,
             adaptiveUI: true,
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
             causticShimmer: true,
             artDirector: true,
         };
@@ -408,6 +412,8 @@
             ember: { label: 'Ember Quantum', accent: '#ff9f67', accent2: '#f36fff', blur: 16, particleCount: 28, tempo: 0.85 },
             monochrome: { label: 'Monochrome Museum', accent: '#d7e2f5', accent2: '#8aa1be', blur: 14, particleCount: 22, tempo: 0.72 },
             zenith: { label: 'Zenith Prism', accent: '#96ff9f', accent2: '#7ee0ff', blur: 24, particleCount: 56, tempo: 1.25 },
+=======
+>>>>>>> main
         };
 
         const usePrefersReducedMotion = () => {
@@ -466,14 +472,22 @@
             return <div ref={ref} className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${enabled ? 'opacity-100 zen-ambient' : 'opacity-0'}`} aria-hidden="true" />;
         };
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
         const ParticleConstellation = ({ enabled, liteMode, particleCount = 38, tempo = 1 }) => {
+=======
+        const ParticleConstellation = ({ enabled, liteMode }) => {
+>>>>>>> main
             const ref = useRef(null);
             useEffect(() => {
                 if (!enabled || liteMode || !ref.current) return;
                 const canvas = ref.current;
                 const ctx = canvas.getContext('2d');
                 let raf = 0;
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
                 const points = Array.from({ length: particleCount }, () => ({ x: Math.random(), y: Math.random(), vx: (Math.random() - 0.5) * 0.00035 * tempo, vy: (Math.random() - 0.5) * 0.00035 * tempo }));
+=======
+                const points = Array.from({ length: 38 }, () => ({ x: Math.random(), y: Math.random(), vx: (Math.random() - 0.5) * 0.00035, vy: (Math.random() - 0.5) * 0.00035 }));
+>>>>>>> main
 
                 const resize = () => {
                     canvas.width = canvas.clientWidth;
@@ -514,7 +528,11 @@
                     cancelAnimationFrame(raf);
                     window.removeEventListener('resize', resize);
                 };
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
             }, [enabled, liteMode, particleCount, tempo]);
+=======
+            }, [enabled, liteMode]);
+>>>>>>> main
             return <canvas ref={ref} className="absolute inset-0 pointer-events-none opacity-55" aria-hidden="true" />;
         };
 
@@ -544,6 +562,7 @@
             );
         };
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
         const ArtDirectorPanel = ({ open, setOpen, artState, setArtState, featureFlags, setFeatureFlags, track }) => {
             if (!open) return null;
             return (
@@ -586,6 +605,8 @@
             );
         };
 
+=======
+>>>>>>> main
         const Button = ({ children, primary, design, icon: Icon, onClick }) => {
             const base = `px-8 py-3 flex items-center justify-center font-bold transition-all active:scale-95 ${design.radius} cursor-pointer select-none`;
             
@@ -733,6 +754,7 @@
             const [whyPanelOpen, setWhyPanelOpen] = useState(false);
             const [perfStats, setPerfStats] = useState({ fps: 60, dips: 0, longTasks: 0 });
             const [reorderModules, setReorderModules] = useState([]);
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
             const [artDirectorOpen, setArtDirectorOpen] = useState(false);
             const [artState, setArtState] = useState(() => {
                 try {
@@ -741,6 +763,8 @@
                     return { profile: 'luminal', motion: 1, particleBoost: 0 };
                 }
             });
+=======
+>>>>>>> main
             const reducedMotion = usePrefersReducedMotion();
             const { telemetry, track } = useTelemetry();
             
@@ -758,6 +782,7 @@
             }, [featureFlags]);
 
             useEffect(() => {
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
                 localStorage.setItem('zenArtState', JSON.stringify(artState));
                 const profile = artProfiles[artState.profile] || artProfiles.luminal;
                 document.documentElement.style.setProperty('--zen-accent', profile.accent);
@@ -774,6 +799,8 @@
             }, []);
 
             useEffect(() => {
+=======
+>>>>>>> main
                 const start = performance.now();
                 const onAction = () => {
                     track('time_to_first_action_ms', { value: Math.round(performance.now() - start) });
@@ -895,28 +922,40 @@
                 setData(generateVenture(prompt));
             };
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
             const profileConfig = artProfiles[artState.profile] || artProfiles.luminal;
 
+=======
+>>>>>>> main
             const quickActions = [
                 { label: 'Toggle Focus', onRun: () => setFocusMode(v => !v) },
                 { label: 'Density: Calm', onRun: () => setDensityMode('calm') },
                 { label: 'Density: Dense', onRun: () => setDensityMode('dense') },
                 { label: 'Story Mode', onRun: () => setStoryMode(v => !v) },
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
                 { label: 'Open Art Director', onRun: () => setArtDirectorOpen(true) },
                 { label: 'Shuffle Aesthetic', onRun: () => {
                     const keys = Object.keys(artProfiles);
                     const next = keys[Math.floor(Math.random() * keys.length)];
                     setArtState(prev => ({ ...prev, profile: next }));
                 } },
+=======
+>>>>>>> main
                 { label: 'Open AI Arena', onRun: () => window.open('https://us.zenai.world', '_blank') },
             ];
 
             return (
                 <div className="w-full h-full flex flex-col bg-black text-white" onClick={() => track('click_heat_root')}>
                     {featureFlags.ambientBackdrop && <AmbientBackdrop enabled={!liteMode && !reducedMotion} reducedMotion={reducedMotion} />}
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
                     {featureFlags.particles && <ParticleConstellation enabled={!reducedMotion} liteMode={liteMode} particleCount={Math.max(12, profileConfig.particleCount + artState.particleBoost)} tempo={profileConfig.tempo * artState.motion} />}
                     <div className="h-12 bg-neutral-900/90 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0 z-50 backdrop-blur-md">
                         <div className="flex items-center gap-2 font-bold text-xs"><div className="w-6 h-6 bg-white text-black rounded flex items-center justify-center">Z</div> ZEN OMNI V6 • {profileConfig.label}</div>
+=======
+                    {featureFlags.particles && <ParticleConstellation enabled={!reducedMotion} liteMode={liteMode} />}
+                    <div className="h-12 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0 z-50">
+                        <div className="flex items-center gap-2 font-bold text-xs"><div className="w-6 h-6 bg-white text-black rounded flex items-center justify-center">Z</div> ZEN OMNI V6</div>
+>>>>>>> main
                         <div className="flex-1 max-w-md mx-4 relative">
                             <input 
                                 value={prompt}
@@ -936,7 +975,10 @@
                     </div>
 
                     <div className="flex-1 relative overflow-hidden">
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
                         {featureFlags.causticShimmer && !liteMode && <div className="absolute inset-0 zen-caustic pointer-events-none z-10" aria-hidden="true" />}
+=======
+>>>>>>> main
                         {data && <LandingView data={data} track={track} densityMode={densityMode} focusMode={focusMode} storyMode={featureFlags.storyMode && storyMode} featureFlags={featureFlags} />}
                         <AgentTerminal logs={logs} />
 
@@ -962,6 +1004,7 @@
                             </div>
                         )}
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
                         {featureFlags.artDirector && (
                             <ArtDirectorPanel
                                 open={artDirectorOpen}
@@ -974,6 +1017,8 @@
                             />
                         )}
 
+=======
+>>>>>>> main
                         {whyPanelOpen && (
                             <GlassCard className="absolute top-4 right-4 w-80 z-40 p-4 text-xs space-y-2">
                                 <h3 className="text-sm font-semibold">Why you're seeing this</h3>
