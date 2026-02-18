@@ -105,6 +105,22 @@
             box-shadow: 0 22px 48px rgba(0, 0, 0, 0.42);
         }
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+        .zen-caustic {
+            background: linear-gradient(125deg, rgba(255,255,255,0.04) 10%, rgba(130, 230, 255, 0.18) 35%, rgba(177, 140, 255, 0.16) 58%, rgba(255,255,255,0.05) 84%);
+            mix-blend-mode: screen;
+            opacity: 0.22;
+            filter: blur(26px);
+            animation: causticSweep 14s var(--zen-ease) infinite alternate;
+        }
+
+        @keyframes causticSweep {
+            0% { transform: translateX(-8%) translateY(-4%) scale(1); }
+            100% { transform: translateX(8%) translateY(5%) scale(1.08); }
+        }
+
+=======
+>>>>>>> main
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
                 animation-duration: 1ms !important;
@@ -385,6 +401,19 @@
             storyMode: false,
             commandPalette: true,
             adaptiveUI: true,
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+            causticShimmer: true,
+            artDirector: true,
+        };
+
+        const artProfiles = {
+            luminal: { label: 'Luminal Lab', accent: '#72d6ff', accent2: '#967dff', blur: 18, particleCount: 38, tempo: 1 },
+            aurora: { label: 'Aurora Instrument', accent: '#66f4d3', accent2: '#74a7ff', blur: 22, particleCount: 50, tempo: 1.15 },
+            ember: { label: 'Ember Quantum', accent: '#ff9f67', accent2: '#f36fff', blur: 16, particleCount: 28, tempo: 0.85 },
+            monochrome: { label: 'Monochrome Museum', accent: '#d7e2f5', accent2: '#8aa1be', blur: 14, particleCount: 22, tempo: 0.72 },
+            zenith: { label: 'Zenith Prism', accent: '#96ff9f', accent2: '#7ee0ff', blur: 24, particleCount: 56, tempo: 1.25 },
+=======
+>>>>>>> main
         };
 
         const usePrefersReducedMotion = () => {
@@ -443,14 +472,22 @@
             return <div ref={ref} className={`absolute inset-0 pointer-events-none transition-opacity duration-700 ${enabled ? 'opacity-100 zen-ambient' : 'opacity-0'}`} aria-hidden="true" />;
         };
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+        const ParticleConstellation = ({ enabled, liteMode, particleCount = 38, tempo = 1 }) => {
+=======
         const ParticleConstellation = ({ enabled, liteMode }) => {
+>>>>>>> main
             const ref = useRef(null);
             useEffect(() => {
                 if (!enabled || liteMode || !ref.current) return;
                 const canvas = ref.current;
                 const ctx = canvas.getContext('2d');
                 let raf = 0;
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+                const points = Array.from({ length: particleCount }, () => ({ x: Math.random(), y: Math.random(), vx: (Math.random() - 0.5) * 0.00035 * tempo, vy: (Math.random() - 0.5) * 0.00035 * tempo }));
+=======
                 const points = Array.from({ length: 38 }, () => ({ x: Math.random(), y: Math.random(), vx: (Math.random() - 0.5) * 0.00035, vy: (Math.random() - 0.5) * 0.00035 }));
+>>>>>>> main
 
                 const resize = () => {
                     canvas.width = canvas.clientWidth;
@@ -491,7 +528,11 @@
                     cancelAnimationFrame(raf);
                     window.removeEventListener('resize', resize);
                 };
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+            }, [enabled, liteMode, particleCount, tempo]);
+=======
             }, [enabled, liteMode]);
+>>>>>>> main
             return <canvas ref={ref} className="absolute inset-0 pointer-events-none opacity-55" aria-hidden="true" />;
         };
 
@@ -521,6 +562,51 @@
             );
         };
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+        const ArtDirectorPanel = ({ open, setOpen, artState, setArtState, featureFlags, setFeatureFlags, track }) => {
+            if (!open) return null;
+            return (
+                <GlassCard className="absolute left-4 top-16 z-[65] w-[340px] p-4 text-xs space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold tracking-wide">Art Director Console</h3>
+                        <button className="zen-focus-ring rounded-full border border-white/25 px-2 py-1" onClick={() => setOpen(false)}>Close</button>
+                    </div>
+                    <p className="opacity-70">Tune atmosphere, motion, and visual character in real-time. Settings persist locally per device.</p>
+                    <div>
+                        <label className="block mb-1 opacity-80">Visual Profile</label>
+                        <select className="w-full bg-black/40 border border-white/20 rounded-lg p-2 zen-focus-ring" value={artState.profile} onChange={(e) => { setArtState(prev => ({ ...prev, profile: e.target.value })); track('art_profile_change', { profile: e.target.value }); }}>
+                            {Object.entries(artProfiles).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block mb-1 opacity-80">Motion Intensity: {artState.motion.toFixed(2)}x</label>
+                        <input type="range" min="0.5" max="1.6" step="0.05" value={artState.motion} className="w-full" onChange={(e) => setArtState(prev => ({ ...prev, motion: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                        <label className="block mb-1 opacity-80">Particle Density: {artState.particleBoost}</label>
+                        <input type="range" min="0" max="40" step="2" value={artState.particleBoost} className="w-full" onChange={(e) => setArtState(prev => ({ ...prev, particleBoost: Number(e.target.value) }))} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {['causticShimmer','ambientBackdrop','particles','adaptiveUI'].map((f) => (
+                            <button key={f} onClick={() => setFeatureFlags(prev => ({ ...prev, [f]: !prev[f] }))} className={`zen-focus-ring rounded-lg border px-2 py-1.5 ${featureFlags[f] ? 'border-cyan-300/80 bg-cyan-200/10' : 'border-white/20'}`}>
+                                {f}
+                            </button>
+                        ))}
+                    </div>
+                    <button className="zen-focus-ring w-full rounded-lg border border-white/25 py-2 hover:bg-white/10" onClick={() => {
+                        const keys = Object.keys(artProfiles);
+                        const next = keys[Math.floor(Math.random() * keys.length)];
+                        setArtState(prev => ({ ...prev, profile: next, motion: Number((0.75 + Math.random() * 0.8).toFixed(2)), particleBoost: Math.floor(Math.random() * 36) }));
+                        track('art_masterpiece_shuffle', { profile: next });
+                    }}>
+                        Shuffle Masterpiece
+                    </button>
+                </GlassCard>
+            );
+        };
+
+=======
+>>>>>>> main
         const Button = ({ children, primary, design, icon: Icon, onClick }) => {
             const base = `px-8 py-3 flex items-center justify-center font-bold transition-all active:scale-95 ${design.radius} cursor-pointer select-none`;
             
@@ -668,6 +754,17 @@
             const [whyPanelOpen, setWhyPanelOpen] = useState(false);
             const [perfStats, setPerfStats] = useState({ fps: 60, dips: 0, longTasks: 0 });
             const [reorderModules, setReorderModules] = useState([]);
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+            const [artDirectorOpen, setArtDirectorOpen] = useState(false);
+            const [artState, setArtState] = useState(() => {
+                try {
+                    return { profile: 'luminal', motion: 1, particleBoost: 0, ...(JSON.parse(localStorage.getItem('zenArtState') || '{}')) };
+                } catch {
+                    return { profile: 'luminal', motion: 1, particleBoost: 0 };
+                }
+            });
+=======
+>>>>>>> main
             const reducedMotion = usePrefersReducedMotion();
             const { telemetry, track } = useTelemetry();
             
@@ -685,6 +782,25 @@
             }, [featureFlags]);
 
             useEffect(() => {
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+                localStorage.setItem('zenArtState', JSON.stringify(artState));
+                const profile = artProfiles[artState.profile] || artProfiles.luminal;
+                document.documentElement.style.setProperty('--zen-accent', profile.accent);
+                document.documentElement.style.setProperty('--zen-accent-2', profile.accent2);
+                document.documentElement.style.setProperty('--zen-blur', `${Math.round(profile.blur * artState.motion)}px`);
+            }, [artState]);
+
+            useEffect(() => {
+                const daySeed = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+                const profileKeys = Object.keys(artProfiles);
+                const profile = profileKeys[daySeed % profileKeys.length];
+                setArtState(prev => ({ ...prev, profile }));
+                addLog(`Micro-variation seed loaded: ${profile}.`);
+            }, []);
+
+            useEffect(() => {
+=======
+>>>>>>> main
                 const start = performance.now();
                 const onAction = () => {
                     track('time_to_first_action_ms', { value: Math.round(performance.now() - start) });
@@ -806,20 +922,40 @@
                 setData(generateVenture(prompt));
             };
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+            const profileConfig = artProfiles[artState.profile] || artProfiles.luminal;
+
+=======
+>>>>>>> main
             const quickActions = [
                 { label: 'Toggle Focus', onRun: () => setFocusMode(v => !v) },
                 { label: 'Density: Calm', onRun: () => setDensityMode('calm') },
                 { label: 'Density: Dense', onRun: () => setDensityMode('dense') },
                 { label: 'Story Mode', onRun: () => setStoryMode(v => !v) },
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+                { label: 'Open Art Director', onRun: () => setArtDirectorOpen(true) },
+                { label: 'Shuffle Aesthetic', onRun: () => {
+                    const keys = Object.keys(artProfiles);
+                    const next = keys[Math.floor(Math.random() * keys.length)];
+                    setArtState(prev => ({ ...prev, profile: next }));
+                } },
+=======
+>>>>>>> main
                 { label: 'Open AI Arena', onRun: () => window.open('https://us.zenai.world', '_blank') },
             ];
 
             return (
                 <div className="w-full h-full flex flex-col bg-black text-white" onClick={() => track('click_heat_root')}>
                     {featureFlags.ambientBackdrop && <AmbientBackdrop enabled={!liteMode && !reducedMotion} reducedMotion={reducedMotion} />}
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+                    {featureFlags.particles && <ParticleConstellation enabled={!reducedMotion} liteMode={liteMode} particleCount={Math.max(12, profileConfig.particleCount + artState.particleBoost)} tempo={profileConfig.tempo * artState.motion} />}
+                    <div className="h-12 bg-neutral-900/90 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0 z-50 backdrop-blur-md">
+                        <div className="flex items-center gap-2 font-bold text-xs"><div className="w-6 h-6 bg-white text-black rounded flex items-center justify-center">Z</div> ZEN OMNI V6 • {profileConfig.label}</div>
+=======
                     {featureFlags.particles && <ParticleConstellation enabled={!reducedMotion} liteMode={liteMode} />}
                     <div className="h-12 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between px-4 shrink-0 z-50">
                         <div className="flex items-center gap-2 font-bold text-xs"><div className="w-6 h-6 bg-white text-black rounded flex items-center justify-center">Z</div> ZEN OMNI V6</div>
+>>>>>>> main
                         <div className="flex-1 max-w-md mx-4 relative">
                             <input 
                                 value={prompt}
@@ -830,12 +966,19 @@
                             />
                             <button onClick={handleGenerate} className="absolute right-1 top-0.5 bottom-0.5 px-3 rounded-full bg-white text-black text-[10px] font-bold uppercase">Generate</button>
                         </div>
-                        <button onClick={() => setAutoMode(!autoMode)} className="text-[10px] font-mono border border-neutral-700 px-2 py-1 rounded hover:bg-neutral-800">
-                            {autoMode ? 'PAUSE' : 'RESUME'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setArtDirectorOpen(v => !v)} className="text-[10px] font-mono border border-neutral-700 px-2 py-1 rounded hover:bg-neutral-800">STUDIO</button>
+                            <button onClick={() => setAutoMode(!autoMode)} className="text-[10px] font-mono border border-neutral-700 px-2 py-1 rounded hover:bg-neutral-800">
+                                {autoMode ? 'PAUSE' : 'RESUME'}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex-1 relative overflow-hidden">
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+                        {featureFlags.causticShimmer && !liteMode && <div className="absolute inset-0 zen-caustic pointer-events-none z-10" aria-hidden="true" />}
+=======
+>>>>>>> main
                         {data && <LandingView data={data} track={track} densityMode={densityMode} focusMode={focusMode} storyMode={featureFlags.storyMode && storyMode} featureFlags={featureFlags} />}
                         <AgentTerminal logs={logs} />
 
@@ -861,6 +1004,21 @@
                             </div>
                         )}
 
+<<<<<<< codex/implement-premium-ui-overhaul-v64kxw
+                        {featureFlags.artDirector && (
+                            <ArtDirectorPanel
+                                open={artDirectorOpen}
+                                setOpen={setArtDirectorOpen}
+                                artState={artState}
+                                setArtState={setArtState}
+                                featureFlags={featureFlags}
+                                setFeatureFlags={setFeatureFlags}
+                                track={track}
+                            />
+                        )}
+
+=======
+>>>>>>> main
                         {whyPanelOpen && (
                             <GlassCard className="absolute top-4 right-4 w-80 z-40 p-4 text-xs space-y-2">
                                 <h3 className="text-sm font-semibold">Why you're seeing this</h3>
